@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Zwift Series Tracker PoC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.5;
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            font-family: monospace;
+            padding: 8px;
+        }
+        button {
+            margin: 10px 0;
+            padding: 10px 20px;
+            font-size: 16px;
+        }
+        h2, h3 {
+            margin-top: 30px;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 10px 0 30px 0;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background: #f2f2f2;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        .category-table {
+            margin-bottom: 40px;
+        }
+        .hidden {
+            display: none;
+        }
+        #managerPanel {
+            border: 1px solid #ccc;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: inline-block;
+            width: 180px;
+            margin: 8px 0;
+        }
+        input, select {
+            padding: 6px;
+            width: 300px;
+        }
+        .tabs {
+            overflow: hidden;
+            border: 1px solid #ccc;
+            background-color: #f1f1f1;
+            margin-bottom: 20px;
+        }
+
+        .tab-button {
+            background-color: inherit;
+            float: left;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            padding: 14px 16px;
+            transition: 0.3s;
+            font-size: 16px;
+        }
+
+        .tab-button:hover {
+            background-color: #ddd;
+        }
+
+        .tab-button.active {
+            background-color: #ccc;
+            font-weight: bold;
+        }
+
+        .tab-content {
+            padding: 6px 12px;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            max-width: 80%;
+            max-height: 80%;
+            overflow: auto;
+            border-radius: 8px;
+        }
+        .hidden {
+            display: none;
+        }
+        #bonusFields.hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<h1>Zwift Series Tracker (Proof of Concept)</h1>
+
+<!-- Manager setup -->
+<!-- Manager Setup Panel -->
+<div id="managerPanel">
+    <h2>Manager Setup</h2>
+    <p>Enter series details:</p>
+
+    <label for="seriesName">Series Name:</label>
+    <input type="text" id="seriesName" placeholder="e.g., Philadelphia Wednesday Worlds"><br><br>
+
+    <label for="numRaces">Number of Races:</label>
+    <input type="number" id="numRaces" min="1" max="20" value="5"><br><br>
+
+    <label for="pointsSystem">Points System:</label>
+    <select id="pointsSystem">
+        <option value="fixed100">1st = 100, then descending (100,99,98...)</option>
+        <option value="racesize">1st = number of riders in race, then descending (e.g. 60 riders → 60,59,...)</option>
+        <option value="custom">Custom fixed points (enter below)</option>
+    </select><br><br>
+
+    <div id="customPointsDiv" class="hidden">
+        <label for="customPointsInput">Custom Points (comma-separated for pos 1–20):</label>
+        <input type="text" id="customPointsInput" placeholder="100,90,80,70,60,50,40,30,20,10,5,0,0,..."><br><br>
+    </div>
+
+    <div id="bonusPointsDiv">
+        <label><input type="checkbox" id="enableBonus"> Add bonus points for top 3</label><br>
+        <div id="bonusFields" class="hidden">
+            <label for="bonusInput">Bonus points (1st,2nd,3rd comma-separated):</label>
+            <input type="text" id="bonusInput" placeholder="10,7,5">
+        </div>
+    </div><br>
+
+    <label for="gcBasis">GC Based On:</label>
+    <select id="gcBasis">
+        <option value="points">Total Points</option>
+        <option value="time">Total Time (only full participants ranked)</option>
+    </select><br><br>
+
+    <button onclick="saveSeriesConfig()">Save Series Config</button>
+    <button onclick="clearAllDataFunc()">Clear All Data</button>
+</div>
+
+<!-- Race entry -->
+<div id="raceEntryPanel" class="hidden">
+    <h2>Enter Race Results</h2>
+    <label for="raceNumber">Race Number:</label>
+    <select id="raceNumber"></select><br><br>
+
+    <textarea id="pasteArea" placeholder="Paste ZwiftPower results here..."></textarea>
+    <br><button onclick="parseAndSaveRace()">Parse and Save Race Results</button>
+    <button onclick="clearAllDataFunc()">Clear All Data</button>
+</div>
+
+<!-- verification -->
+<div id="resultsContainer"></div>
+
+<!-- Verification Modal -->
+<div id="verificationModal" class="modal hidden">
+    <div class="modal-content">
+        <h2>Verify Parsed Data for Race <span id="verifyRaceNumber"></span></h2>
+        <p>Edit any fields if needed, then confirm.</p>
+        <div id="verificationTableContainer"></div>
+        <button onclick="confirmVerification()">Confirm & Proceed</button>
+        <button onclick="closeModal('verificationModal')">Cancel</button>
+    </div>
+</div>
+
+<!-- Name Match Modal -->
+<div id="nameMatchModal" class="modal hidden">
+    <div class="modal-content">
+        <h2>Review Name Matches for Consistency</h2>
+        <p id="nameMatchMessage">Approve or reject suggested matches to existing riders.</p>
+        <div id="nameMatchTable"></div>
+        <div id="nameMatchButtons" style="margin-top: 20px; text-align: center;">
+            <!-- Buttons will be dynamically added here by JS -->
+        </div>
+        <button onclick="closeModal('nameMatchModal')" style="margin-top: 15px;">Cancel</button>
+    </div>
+</div>
+
+<!-- Leaderboard -->
+<h2>Series Leaderboard</h2>
+<div id="leaderboardContainer"></div>
+
+<script src="parser.js"></script>
+<script src="data.js"></script>
+<script src="ui.js"></script>
+<script>
+    window.addEventListener('load', initApp);
+</script>
+</body>
+</html>
