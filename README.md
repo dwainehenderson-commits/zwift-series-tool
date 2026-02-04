@@ -4,8 +4,7 @@ This is a simple local web app for running Zwift race series. Everything runs in
 
 ## Quick Start
 
-1. **Open the app**  
-   Double-click `index.html` (or drag it into Chrome/Firefox).
+1. **Open the app**
 
 2. **Set up your series** (only once)
     - Series name (e.g. "My Wednesday Worlds")

@@ -116,6 +116,18 @@
         #bonusFields.hidden {
             display: none;
         }
+        .info-box {
+            background: #e8f4fd;
+            border: 1px solid #b3d4fc;
+            padding: 12px 16px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #004085;
+        }
+        .info-box strong {
+            color: #003366;
+        }
     </style>
 </head>
 <body>
@@ -171,11 +183,18 @@
 <!-- Race entry -->
 <div id="raceEntryPanel" class="hidden">
     <h2>Enter Race Results</h2>
+
+    <div class="info-box">
+        <strong>Important:</strong> Copy the data on ZwiftPower from the first rider's category down to the end of the data for the last rider.<br>
+        Currently, you need to have the <strong>ZPZRS extension</strong> installed for this to work reliably.
+    </div>
+
     <label for="raceNumber">Race Number:</label>
     <select id="raceNumber"></select><br><br>
 
     <textarea id="pasteArea" placeholder="Paste ZwiftPower results here..."></textarea>
-    <br><button onclick="parseAndSaveRace()">Parse and Save Race Results</button>
+    <br>
+    <button onclick="parseAndSaveRace()">Parse and Save Race Results</button>
     <button onclick="clearAllDataFunc()">Clear All Data</button>
 </div>
 

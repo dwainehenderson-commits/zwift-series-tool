@@ -4,8 +4,10 @@
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="9e382b8b-ed18-47f1-b842-9d0e283b6846" name="Changes" comment="">
+    <list default="true" id="9e382b8b-ed18-47f1-b842-9d0e283b6846" name="Changes" comment="Minor readme updates">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/README.md" beforeDir="false" afterPath="$PROJECT_DIR$/README.md" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/index.html" beforeDir="false" afterPath="$PROJECT_DIR$/index.html" afterDir="false" />
     </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
@@ -154,6 +156,7 @@
   <component name="VcsManagerConfiguration">
     <MESSAGE value="Rebuild .idea, updated readme.md" />
     <MESSAGE value="Updated readme location" />
-    <option name="LAST_COMMIT_MESSAGE" value="Updated readme location" />
+    <MESSAGE value="Minor readme updates" />
+    <option name="LAST_COMMIT_MESSAGE" value="Minor readme updates" />
   </component>
 </project>
