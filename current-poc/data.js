@@ -13,7 +13,6 @@ function storeSeriesConfig(config) {
 // Load series config
 function loadSeriesConfig() {
     const config = localStorage.getItem(SERIES_CONFIG_KEY);
-    cont blah;
     return config ? JSON.parse(config) : null;
 }
 
