@@ -9,6 +9,7 @@ function storeSeriesConfig(config) {
     localStorage.setItem(SERIES_CONFIG_KEY, JSON.stringify(config));
 }
 
+// test edit
 // Load series config
 function loadSeriesConfig() {
     const config = localStorage.getItem(SERIES_CONFIG_KEY);
