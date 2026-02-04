@@ -7,12 +7,14 @@ This is a simple local web app for running Zwift race series. Everything runs in
 1. **Open the app**
 
 2. **Set up your series** (only once)
-    - Series name (e.g. "My Wednesday Worlds")
-    - Number of races (e.g. 5)
-    - Points system:
-        - Fixed descending (1st = 100, then 99, 98...)
-        - Race-size descending (1st gets points = number of riders in that race, then down)
-        - Custom (type comma-separated points for positions 1–20)
+   - Series name (e.g. "My Wednesday Worlds")
+   - Series description (optional: rules, categories, notes)
+   - Number of races (e.g. 5) → dynamically shows fields below for per-race descriptions
+   - Race descriptions (optional: course, weather, rules for Race 1, 2, etc.)
+   - Points system:
+   - Fixed descending (1st = 100, then 99, 98...)
+   - Race-size descending (1st gets points = number of riders in that race, then down)
+   - Custom (type comma-separated points for positions 1–20)
     - Optional bonus: Check box + enter 3 numbers (e.g. 10,7,5 for 1st/2nd/3rd)
     - GC type: Points (sum) or Time (total time, only full participants ranked)
     - Click **Save Series Config**
@@ -38,12 +40,12 @@ This is a simple local web app for running Zwift race series. Everything runs in
    → Race saved. Leaderboard updates.
 
 4. **View leaderboard**
-    - Tabs at top for each category
-    - Click tab to see that category
-    - Columns: GC Pos, Rider, Race 1, Race 2..., Total
-    - Click headers to sort
-    - Time GC: Only full participants ranked; others in "Incomplete" section below
-    - Top shows which points system is used
+   - Tabs at top for each category
+   - Click tab to see that category
+   - Columns: GC Pos, Rider, Race 1, Race 2..., Total
+   - Click headers to sort
+   - Time GC: Only full participants ranked; others in "Incomplete" section below
+   - **Top shows series name/desc + per-race descriptions** (if entered)
 
 5. **Clear everything** (start over)  
    Click **Clear All Data** (in setup or entry screen) → confirm → setup form returns.

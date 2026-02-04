@@ -9,12 +9,28 @@
             margin: 20px;
             line-height: 1.5;
         }
-        textarea {
+
+        #pasteArea {
             width: 100%;
-            height: 300px;
+            height: 500px;
             font-family: monospace;
             padding: 8px;
         }
+
+        textarea {
+            width: 100%;
+            height: 75px;
+            font-family: monospace;
+            padding: 8px;
+        }
+
+        textarea {
+            width: 100%;
+            height: 75px;
+            font-family: monospace;
+            padding: 8px;
+        }
+
         button {
             margin: 10px 0;
             padding: 10px 20px;
@@ -147,8 +163,13 @@
     <label for="seriesName">Series Name:</label>
     <input type="text" id="seriesName" placeholder="e.g., Philadelphia Wednesday Worlds"><br><br>
 
+    <label for="seriesDescription">Series Description (optional):</label>
+    <textarea id="seriesDescription" rows="4" placeholder="Series description here..." style="width: 300px; font-family: Arial, sans-serif; padding: 6px;"></textarea><br><br>
+
     <label for="numRaces">Number of Races:</label>
     <input type="number" id="numRaces" min="1" max="20" value="5"><br><br>
+
+    <div id="raceDescriptionsContainer"></div><br><br>
 
     <label for="pointsSystem">Points System:</label>
     <select id="pointsSystem">

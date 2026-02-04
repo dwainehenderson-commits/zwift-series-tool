@@ -12,17 +12,55 @@ function initApp() {
     // Toggle custom points field
     const pointsSystemSelect = document.getElementById('pointsSystem');
     if (pointsSystemSelect) {
-        pointsSystemSelect.addEventListener('change', function() {
+        pointsSystemSelect.addEventListener('change', function () {
             document.getElementById('customPointsDiv').classList.toggle('hidden', this.value !== 'custom');
         });
+    }
+
+    // NEW: Race desc inputs
+    const numRacesInput = document.getElementById('numRaces');
+    if (numRacesInput) {
+        numRacesInput.addEventListener('input', handleNumRacesChange);
+        handleNumRacesChange.call(numRacesInput);  // Init with default value=5
     }
 
     // Toggle bonus fields
     const enableBonus = document.getElementById('enableBonus');
     if (enableBonus) {
-        enableBonus.addEventListener('change', function() {
+        enableBonus.addEventListener('change', function () {
             document.getElementById('bonusFields').classList.toggle('hidden', !this.checked);
         });
+    }
+}
+
+function handleNumRacesChange() {
+    const numRaces = parseInt(this.value) || 0;
+    updateRaceDescInputs(numRaces);
+}
+
+function updateRaceDescInputs(numRaces) {
+    const container = document.getElementById('raceDescriptionsContainer');
+    if (!container) return;
+
+    container.innerHTML = '';
+    for (let i = 1; i <= numRaces; i++) {
+        const label = document.createElement('label');
+        label.htmlFor = `raceDesc${i}`;
+        label.textContent = `Race ${i} Description (optional):`;
+        label.style.display = 'block';
+        label.style.marginTop = '10px';
+
+        const textarea = document.createElement('textarea');
+        textarea.id = `raceDesc${i}`;
+        textarea.rows = 4;
+        textarea.placeholder = 'Race description (e.g., course, weather, special rules)';
+        textarea.style.width = '300px';
+        textarea.style.fontFamily = 'Arial, sans-serif';
+        textarea.style.padding = '6px';
+
+        container.appendChild(label);
+        container.appendChild(textarea);
+        if (i < numRaces) container.appendChild(document.createElement('br'));
     }
 }
 
@@ -48,19 +86,37 @@ function saveSeriesConfig() {
         }
     }
     const gcBasis = document.getElementById('gcBasis').value;
+    const description = document.getElementById('seriesDescription').value.trim();
+
+    const raceDescriptions = [];
+    for (let i = 1; i <= numRaces; i++) {
+        const el = document.getElementById(`raceDesc${i}`);
+        raceDescriptions.push(el ? el.value.trim() : '');
+    }
 
     if (!name || isNaN(numRaces) || numRaces < 1 || numRaces > 20) {
         alert('Please enter a valid series name and number of races (1-20).');
         return;
     }
 
-    const config = { name, numRaces, pointsSystem, customPoints, enableBonus, bonusPoints, gcBasis };
+    const config = {
+        name,
+        numRaces,
+        pointsSystem,
+        customPoints,
+        enableBonus,
+        bonusPoints,
+        gcBasis,
+        description,
+        raceDescriptions
+    };
     storeSeriesConfig(config);
 
     alert('Series configuration saved!');
     document.getElementById('managerPanel').style.display = 'none';
     document.getElementById('raceEntryPanel').classList.remove('hidden');
     populateRaceDropdown(numRaces);
+    showSeriesInfoInEntry(config);
     renderLeaderboard();
 }
 
@@ -269,6 +325,7 @@ function saveNameMatches() {
     alert(`Race ${raceNumber} saved. ${changesMade} name${changesMade === 1 ? '' : 's'} updated based on approvals.`);
     renderLeaderboard();
     populateRaceDropdown(loadSeriesConfig().numRaces);  // Refresh dropdown after save
+    showSeriesInfoInEntry(loadSeriesConfig());
 
     window.currentNameSuggestions = null;
     window.currentParsedData = null;
@@ -288,7 +345,25 @@ function renderLeaderboard() {
     }
 
     const gcData = computeGC(config);
-    let html = `<p><strong>Series:</strong> ${config.name} | GC based on: ${config.gcBasis === 'points' ? 'Points' : 'Total Time'}</p>`;
+    let html = `<div class="info-box"><strong>${config.name}</strong>`;
+    html += `<br><small>GC based on: ${config.gcBasis === 'points' ? 'Total Points' : 'Total Time'}</small>`;
+    if (config.description?.trim()) {
+        html += `<br><br>${config.description}`;
+    }
+    html += `</div>`;
+
+    // NEW: Per-race descriptions (single info-box)
+    if (config.raceDescriptions) {
+        const raceDescList = [];
+        config.raceDescriptions.forEach((desc, index) => {
+            if (desc?.trim()) {
+                raceDescList.push(`<li><strong>Race ${index + 1}:</strong><br>${desc.replace(/\n/g, '<br>')}</li>`);
+            }
+        });
+        if (raceDescList.length > 0) {
+            html += `<div class="info-box"><strong>Race Descriptions:</strong><ul style="margin-top: 10px;">${raceDescList.join('')}</ul></div>`;
+        }
+    }
 
     if (config.gcBasis === 'time') {
         html += '<p><em>Note: Only riders who completed ALL races are ranked in the main table. Riders with missing races are listed below as incomplete.</em></p>';
@@ -302,11 +377,10 @@ function renderLeaderboard() {
     html += '</div>';
 
     Object.keys(gcData).sort().forEach((cat, index) => {
-        const { complete, incomplete } = gcData[cat];
+        const {complete, incomplete} = gcData[cat];
         const display = index === 0 ? 'block' : 'none';
 
         html += `<div id="tab-${cat}" class="tab-content" style="display:${display};">`;
-
         html += `<h3>Category ${cat} - Ranked GC</h3>`;
         html += '<table class="category-table"><thead><tr>';
         html += '<th>GC Pos</th><th>Rider</th>';
@@ -407,7 +481,7 @@ function normalizeRiderName(name) {
 function levenshteinSimilarity(a, b) {
     if (a === b) return 1.0;
     const lenA = a.length, lenB = b.length;
-    const matrix = Array(lenA + 1).fill().map(() => Array(lenB + 1).fill(0));
+    const matrix = Array(lenA + 1).fill().map(() => Array(lenB + 1).fill(0));  // Fixed syntax
 
     for (let i = 0; i <= lenA; i++) matrix[i][0] = i;
     for (let j = 0; j <= lenB; j++) matrix[0][j] = j;
@@ -433,7 +507,7 @@ function getExistingRiders() {
         if (race) {
             race.forEach(entry => {
                 const norm = normalizeRiderName(entry.name);
-                if (!existing[norm]) existing[norm] = { name: entry.name, category: entry.category };
+                if (!existing[norm]) existing[norm] = {name: entry.name, category: entry.category};
             });
         }
     });
