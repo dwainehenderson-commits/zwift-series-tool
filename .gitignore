@@ -2,4 +2,8 @@ node_modules/
 *.log
 .DS_Store
 Thumbs.db
+.idea/
+*.iml
+*.iws
+
 zwift.db  # if you ever add SQLite locally
