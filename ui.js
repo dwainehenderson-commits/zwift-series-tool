@@ -222,6 +222,7 @@ function confirmVerification() {
     showNameMatchModal(parsed, raceNumber);
 }
 
+// Name matching modal. Fuzzy threshold set to 0.55 (55% similarity)
 function showNameMatchModal(parsed, raceNumber) {
     const existingRiders = getExistingRiders();
     const suggestions = [];
@@ -233,7 +234,7 @@ function showNameMatchModal(parsed, raceNumber) {
 
         Object.keys(existingRiders).forEach(normExist => {
             const score = levenshteinSimilarity(normNew, normExist);
-            if (score > 0.82 && score < 1.0 && score > bestScore) {
+            if (score > 0.55 && score < 1.0 && score > bestScore) {  // Your 70% threshold
                 bestScore = score;
                 bestMatch = existingRiders[normExist].name;
             }
@@ -250,45 +251,80 @@ function showNameMatchModal(parsed, raceNumber) {
         }
     });
 
-    const tableContainer = document.getElementById('nameMatchTable');
-    const buttonsContainer = document.getElementById('nameMatchButtons');
-    const messageEl = document.getElementById('nameMatchMessage');
+    let html = '<div style="padding: 20px;">';
 
-    let html = '';
-    let hasSuggestions = suggestions.length > 0;
-
-    if (hasSuggestions) {
-        messageEl.textContent = 'Review suggested fuzzy name matches for consistency:';
+    if (suggestions.length > 0) {
+        // Matches exist → show the suggestions table + buttons
+        html += '<p style="margin-bottom: 15px; font-weight: bold;">Review suggested fuzzy name matches:</p>';
         html += '<table style="width:100%; border-collapse:collapse;">';
         html += '<thead><tr style="background:#f5f5f5;"><th style="border:1px solid #ddd; padding:10px;">New/Edited Name</th><th style="border:1px solid #ddd; padding:10px;">Suggested Match</th><th style="border:1px solid #ddd; padding:10px;">Similarity</th><th style="border:1px solid #ddd; padding:10px;">Approve?</th></tr></thead>';
         html += '<tbody>';
         suggestions.forEach((s, sIdx) => {
-            html += `<tr>
-                <td style="border:1px solid #ddd; padding:10px;">${s.originalName}</td>
-                <td style="border:1px solid #ddd; padding:10px;">${s.suggestedName}</td>
-                <td style="border:1px solid #ddd; padding:10px;">${s.score}</td>
-                <td style="border:1px solid #ddd; padding:10px; text-align:center;">
-                    <input type="checkbox" class="approve-match" checked data-sidx="${sIdx}">
-                </td>
-            </tr>`;
+            html += `<tr class="name-match-row unapproved" data-sidx="${sIdx}">
+    <td style="border:1px solid #ddd; padding:10px;">${s.originalName}</td>
+    <td style="border:1px solid #ddd; padding:10px;">${s.suggestedName}</td>
+    <td style="border:1px solid #ddd; padding:10px;">${s.score}</td>
+    <td style="border:1px solid #ddd; padding:10px; text-align:center;">
+        <input type="checkbox" class="approve-match" data-sidx="${sIdx}">
+    </td>
+</tr>`;
         });
         html += '</tbody></table>';
-
-        // Buttons for when suggestions exist
-        buttonsContainer.innerHTML = `
-            <button onclick="approveAllMatches()" style="margin-right:15px; padding:10px 20px; background:#2196F3; color:white; border:none; border-radius:4px; cursor:pointer;">Approve All Matches</button>
-            <button onclick="saveNameMatches()" style="padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">Save Race with Approved Changes</button>
-        `;
+        html += '<br>';
+        html += '<button onclick="approveAllMatches()" style="margin-right:15px; padding:10px 20px; background:#2196F3; color:white; border:none; border-radius:4px; cursor:pointer;">Approve All Matches</button>';
+        html += '<button onclick="saveNameMatches()" style="padding:10px 20px; background:#4CAF50; color:white; border:none; border-radius:4px; cursor:pointer;">Save Race with Approved Changes</button>';
     } else {
-        messageEl.textContent = 'No fuzzy name matches detected (exact matches are ignored). Ready to save?';
-        tableContainer.innerHTML = '';  // Clear table
-
-        // Only single save button when no suggestions
-        buttonsContainer.innerHTML = `
-            <button onclick="saveNameMatches()" style="padding:12px 40px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:6px; cursor:pointer;">Save Race</button>
-        `;
+        // No matches → simple message + single save button (no list/table)
+        html += '<p style="color:#555; font-style:italic; margin:30px 0; font-size:1.1em;">';
+        html += 'No fuzzy name matches detected (exact matches are ignored). Ready to save?</p>';
+        html += '<button onclick="saveNameMatches()" style="padding:12px 40px; font-size:16px; background:#4CAF50; color:white; border:none; border-radius:6px; cursor:pointer;">Save Race</button>';
     }
 
+    html += '</div>';
+
+    document.getElementById('nameMatchTable').innerHTML = html;
+
+    // Add change listeners to checkboxes to toggle row color
+    document.querySelectorAll('.approve-match').forEach(checkbox => {
+        const row = checkbox.closest('tr');  // Find parent <tr>
+        if (row) {
+            // Initial state: unchecked = unapproved (light red)
+            row.classList.add('unapproved');
+            row.classList.remove('approved');
+
+            checkbox.addEventListener('change', function() {
+                if (this.checked) {
+                    row.classList.remove('unapproved');
+                    row.classList.add('approved');
+                } else {
+                    row.classList.remove('approved');
+                    row.classList.add('unapproved');
+                }
+            });
+        }
+    });
+
+    // NEW: Force row highlight update when "Approve All" is clicked
+    const approveAllBtn = document.querySelector('button[onclick="approveAllMatches()"]');
+    if (approveAllBtn) {
+        approveAllBtn.addEventListener('click', () => {
+            // Give checkboxes time to update (tiny delay)
+            setTimeout(() => {
+                document.querySelectorAll('.approve-match').forEach(checkbox => {
+                    const row = checkbox.closest('tr');
+                    if (row) {
+                        if (checkbox.checked) {
+                            row.classList.remove('unapproved');
+                            row.classList.add('approved');
+                        } else {
+                            row.classList.remove('approved');
+                            row.classList.add('unapproved');
+                        }
+                    }
+                });
+            }, 50);  // Small delay to ensure checked state is applied
+        });
+    }
     document.getElementById('nameMatchModal').classList.remove('hidden');
 
     window.currentNameSuggestions = suggestions;
@@ -297,7 +333,10 @@ function showNameMatchModal(parsed, raceNumber) {
 }
 
 function approveAllMatches() {
-    document.querySelectorAll('.approve-match').forEach(cb => cb.checked = true);
+    console.log('Approve All Matches button clicked!');  // ← add this
+    document.querySelectorAll('.approve-match').forEach(cb => {
+        cb.checked = true;
+    });
 }
 
 function saveNameMatches() {

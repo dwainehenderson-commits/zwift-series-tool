@@ -144,12 +144,28 @@
         .info-box strong {
             color: #003366;
         }
+        /* Name match suggestion row highlighting */
+        .name-match-row {
+            transition: background-color 0.3s ease;
+        }
+
+        .name-match-row.unapproved {
+            background-color: #d18994; /* light red - unapproved / unchecked */
+        }
+
+        .name-match-row.approved {
+            background-color: #9edaa3; /* light green - approved / checked */
+        }
+
+        /* Optional: hover effect for better interaction */
+        .name-match-row:hover {
+            background-color: #f0f0f0 !important;
+        }
     </style>
 </head>
 <body>
 <h1>Zwift Series Tracker (Proof of Concept)</h1>
 
-<!-- Manager setup -->
 <!-- Manager Setup Panel -->
 <div id="managerPanel">
     <p>
@@ -201,6 +217,10 @@
     <button onclick="clearAllDataFunc()">Clear All Data</button>
 </div>
 
+<!-- Leaderboard -->
+<h2>Series Leaderboard</h2>
+<div id="leaderboardContainer"></div>
+
 <!-- Race entry -->
 <div id="raceEntryPanel" class="hidden">
     <h2>Enter Race Results</h2>
@@ -244,10 +264,6 @@
         <button onclick="closeModal('nameMatchModal')" style="margin-top: 15px;">Cancel</button>
     </div>
 </div>
-
-<!-- Leaderboard -->
-<h2>Series Leaderboard</h2>
-<div id="leaderboardContainer"></div>
 
 <script src="parser.js"></script>
 <script src="data.js"></script>
