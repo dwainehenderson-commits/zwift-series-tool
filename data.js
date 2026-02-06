@@ -104,7 +104,7 @@ function computeGC(config) {
                 ridersGC[key].team = entry.team;
             }
         });
-        // NEW: Team points aggregation per race (after individual points calculated)
+        // NEW: Team points aggregation per race (position-based, not sum of rider points)
         if (config.teamRace) {
             const catRiderLists = {};
             race.forEach(entry => {
@@ -121,26 +121,34 @@ function computeGC(config) {
                         teamGroups[normT].push(entry);
                     }
                 });
+                // Collect team sums (top X riders' points)
+                const teamSums = [];
                 Object.keys(teamGroups).forEach(normT => {
                     const group = teamGroups[normT].slice();
                     group.sort((a, b) => a.position - b.position || parseFloat(a.totalSeconds) - parseFloat(b.totalSeconds));
                     const topX = config.topXRidersCount || group.length;
                     const topRidersPoints = group.slice(0, topX).reduce((sum, r) => sum + r.points, 0);
-                    const teamKey = normT + '_' + cat;
+                    teamSums.push({ normT, sum: topRidersPoints });
+                });
+                // Rank teams by sum descending (highest points = best team = lowest position)
+                teamSums.sort((a, b) => b.sum - a.sum);
+                teamSums.forEach((t, idx) => {
+                    const pos = idx + 1;  // 1st = 1, 2nd = 2, etc.
+                    const teamKey = t.normT + '_' + cat;
                     if (!teamsGC[teamKey]) {
                         teamsGC[teamKey] = {
-                            normTeam: normT,
+                            normTeam: t.normT,
                             category: cat,
-                            name: group[0].team,
+                            name: teamGroups[t.normT][0].team,  // Original casing
                             totalTeamPoints: 0,
                             teamRacesCompleted: 0,
                             races: new Array(config.numRaces).fill(0)
                         };
                     }
                     const team = teamsGC[teamKey];
-                    team.totalTeamPoints += topRidersPoints;
-                    team.races[raceIndex] = topRidersPoints;
-                    if (topRidersPoints > 0) team.teamRacesCompleted++;
+                    team.totalTeamPoints += pos;
+                    team.races[raceIndex] = pos;
+                    if (pos > 0) team.teamRacesCompleted++;
                 });
             });
         }
@@ -215,7 +223,7 @@ function computeGC(config) {
                     catTeams.push(team);
                 }
             });
-            catTeams.sort((a, b) => b.totalTeamPoints - a.totalTeamPoints);
+            catTeams.sort((a, b) => a.totalTeamPoints - b.totalTeamPoints);  // Ascending: lowest total = best = pos 1
             let pos = 1;
             catTeams.forEach((team, index) => {
                 if (index > 0 && team.totalTeamPoints === catTeams[index - 1].totalTeamPoints) {

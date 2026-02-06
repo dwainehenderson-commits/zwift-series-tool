@@ -569,18 +569,22 @@ function renderLeaderboard() {
 
         html += `<div id="tab-${cat}" class="tab-content" style="display:${display};">`;
         html += `<h3>Category ${cat} - ${config.teamRace ? 'Team' : 'Individual'} GC</h3>`;
+
         html += '<table class="category-table">';
         // Dynamic headers
         html += '<thead><tr><th>GC Pos</th>';
         if (config.teamRace) {
-            html += '<th>Team</th>';
+            html += '<th>Team</th><th>Team Total</th>';
         }
         html += '<th>Rider</th>';
         for (let race = 1; race <= config.numRaces; race++) {
             html += `<th>Race ${race}<br>(Pos / Pts / Time)</th>`;
+            if (config.teamRace) {
+                html += `<th>Race ${race}<br>Team Pos</th>`;
+            }
         }
         if (config.teamRace) {
-            html += '<th>Rider Total</th><th>Team Total</th>';
+            html += '<th>Rider Total</th>';
         } else {
             html += '<th>Total</th>';
         }
@@ -590,17 +594,24 @@ function renderLeaderboard() {
         if (config.teamRace && teams.length > 0) {
             teams.forEach(team => {
                 if (team.riders && team.riders.length > 0) {
-                    team.riders.forEach(rider => {
-                        html += `<tr>
-                                    <td>${team.gcPosition || '-'}</td>
-                                    <td>${team.name}</td>
-                                    <td>${rider.name}</td>`;
-                        rider.races.forEach(raceData => {
+                    const numRiders = team.riders.length;
+                    team.riders.forEach((rider, rIdx) => {
+                        html += `<tr>`;
+                        if (rIdx === 0) {
+                            html += `<td rowspan="${numRiders}">${team.gcPosition || '-'}</td>
+                                        <td rowspan="${numRiders}">${team.name}</td>
+                                        <td rowspan="${numRiders}">${team.totalTeamPoints}</td>`;
+                        }
+                        html += `<td>${rider.name}</td>`;
+                        for (let r = 0; r < config.numRaces; r++) {
+                            const raceData = rider.races[r];
                             html += raceData ? `<td>${raceData.position} / ${raceData.points} / ${raceData.time}</td>` : '<td>-</td>';
-                        });
-                        html += `<td>${rider.totalPoints}</td>
-                                    <td>${team.totalTeamPoints}</td>
-                                </tr>`;
+                            if (rIdx === 0 && config.teamRace) {
+                                const teamPos = team.races[r] ? team.races[r] : '-';
+                                html += `<td rowspan="${numRiders}">${teamPos}</td>`;
+                            }
+                        }
+                        html += `<td>${rider.totalPoints}</td></tr>`;
                     });
                 }
             });
@@ -639,7 +650,52 @@ function renderLeaderboard() {
     });
 
     document.getElementById('leaderboardContainer').innerHTML = html;
-    addSortingToTables();
+    if (!config.teamRace) {
+        addSortingToTables();
+    } else {
+        // Add selective sorting for team tables
+        document.querySelectorAll('.category-table').forEach(table => {
+            table.querySelectorAll('th').forEach((th, index) => {
+                const text = th.textContent.trim();
+                if (text === 'GC Pos' || text === 'Team Total' || text.includes('Team Pos')) {
+                    th.style.cursor = 'pointer';
+                    th.addEventListener('click', () => {
+                        const tbody = table.querySelector('tbody');
+                        if (!tbody) return;
+                        // Group rows into teams
+                        const teamGroups = [];
+                        let currentTeam = [];
+                        Array.from(tbody.rows).forEach(row => {
+                            if (row.cells[0].hasAttribute('rowspan')) {
+                                if (currentTeam.length > 0) teamGroups.push(currentTeam);
+                                currentTeam = [row];
+                            } else {
+                                currentTeam.push(row);
+                            }
+                        });
+                        if (currentTeam.length > 0) teamGroups.push(currentTeam);
+                        // Sort teams (ascending for all, since lower is better)
+                        teamGroups.sort((a, b) => {
+                            let valA = a[0].cells[index].textContent.trim();
+                            let valB = b[0].cells[index].textContent.trim();
+                            const invert = false;
+                            if (!isNaN(valA) && !isNaN(valB)) {
+                                const numA = parseFloat(valA);
+                                const numB = parseFloat(valB);
+                                return invert ? numB - numA : numA - numB;
+                            }
+                            return valA.localeCompare(valB);
+                        });
+                        // Rebuild tbody
+                        tbody.innerHTML = '';
+                        teamGroups.forEach(team => {
+                            team.forEach(row => tbody.appendChild(row));
+                        });
+                    });
+                }
+            });
+        });
+    }
 }
 
 function openCategoryTab(category) {
@@ -671,8 +727,13 @@ function addSortingToTables() {
                 let valA = a.cells[index].textContent.trim();
                 let valB = b.cells[index].textContent.trim();
 
+                // Invert sort for Total columns (higher = better)
+                const invert = th.textContent === 'Total';
+
                 if (!isNaN(valA) && !isNaN(valB)) {
-                    return parseFloat(valA) - parseFloat(valB);
+                    const numA = parseFloat(valA);
+                    const numB = parseFloat(valB);
+                    return invert ? numB - numA : numA - numB;  // Descending for Team Total
                 }
                 return valA.localeCompare(valB);
             });
