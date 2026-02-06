@@ -31,6 +31,42 @@ function initApp() {
             document.getElementById('bonusFields').classList.toggle('hidden', !this.checked);
         });
     }
+
+    // NEW: Team race toggles
+    const teamRaceCb = document.getElementById('teamRace');
+    if (teamRaceCb) {
+        teamRaceCb.addEventListener('change', toggleTeamOptions);
+    }
+    const useTopXCb = document.getElementById('useTopXRiders');
+    if (useTopXCb) {
+        useTopXCb.addEventListener('change', toggleTopXField);
+    }
+    toggleGcBasis();  // Initial state
+}
+
+// NEW: Team toggle functions
+function toggleTeamOptions() {
+    const checked = document.getElementById('teamRace').checked;
+    document.getElementById('teamOptions').classList.toggle('hidden', !checked);
+    toggleGcBasis();
+}
+
+function toggleTopXField() {
+    const checked = document.getElementById('useTopXRiders').checked;
+    document.getElementById('topXFieldDiv').classList.toggle('hidden', !checked);
+}
+
+function toggleGcBasis() {
+    const teamChecked = document.getElementById('teamRace')?.checked || false;
+    const select = document.getElementById('gcBasis');
+    if (!select) return;
+    const timeOpt = Array.from(select.options).find(opt => opt.value === 'time');
+    if (timeOpt) {
+        timeOpt.disabled = teamChecked;
+        if (teamChecked) {
+            select.value = 'points';
+        }
+    }
 }
 
 function handleNumRacesChange() {
@@ -88,6 +124,26 @@ function saveSeriesConfig() {
     const gcBasis = document.getElementById('gcBasis').value;
     const description = document.getElementById('seriesDescription').value.trim();
 
+    // NEW: Team race config
+    const teamRace = document.getElementById('teamRace').checked || false;
+    let topXRidersCount = null;
+    if (teamRace) {
+        if (gcBasis === 'time') {
+            alert('Team Race Mode only supports Points-based GC.');
+            return;
+        }
+        const useTopX = document.getElementById('useTopXRiders').checked || false;
+        if (useTopX) {
+            const countStr = document.getElementById('topXRidersCount').value.trim();
+            const count = parseInt(countStr, 10);
+            if (isNaN(count) || count < 1 || count > 20) {
+                alert('Top X count must be a number between 1 and 20.');
+                return;
+            }
+            topXRidersCount = count;
+        }
+    }
+
     const raceDescriptions = [];
     for (let i = 1; i <= numRaces; i++) {
         const el = document.getElementById(`raceDesc${i}`);
@@ -108,7 +164,10 @@ function saveSeriesConfig() {
         bonusPoints,
         gcBasis,
         description,
-        raceDescriptions
+        raceDescriptions,
+        // NEW
+        teamRace,
+        topXRidersCount
     };
     storeSeriesConfig(config);
 
@@ -178,10 +237,41 @@ function parseAndSaveRace() {
 
 function buildVerificationTable(parsed, raceNumber) {
     const config = loadSeriesConfig();
+    const isTeamRace = config?.teamRace || false;
     const enableBonus = config?.enableBonus || false;
     const bonusPoints = enableBonus ? config?.bonusPoints || [0, 0, 0] : [0, 0, 0];
 
-    let html = '<table><thead><tr><th>Cat</th><th>Name (editable)</th><th>Time</th><th>Gap</th><th>Points</th></tr></thead><tbody>';
+    // NEW: For team mode, collect existing teams and rider-team mappings from previous races
+    let allTeams = new Set();
+    let riderTeams = {};
+    let datalistHtml = '';
+    if (isTeamRace) {
+        const allRaces = loadAllRaces();
+        const previousRaces = allRaces.slice(0, raceNumber - 1);
+        previousRaces.forEach(raceData => {
+            if (!Array.isArray(raceData)) return;
+            raceData.forEach(entry => {
+                const team = entry.team || '';
+                if (team.trim()) {
+                    allTeams.add(team);
+                    const normName = normalizeRiderName(entry.name);
+                    const key = normName + '_' + entry.category;
+                    riderTeams[key] = team;  // Last seen wins for prefill
+                }
+            });
+        });
+        datalistHtml = '<datalist id="teamDatalist">';
+        Array.from(allTeams).sort((a, b) => a.localeCompare(b)).forEach(team => {
+            datalistHtml += `<option value="${team.replace(/"/g, '&quot;')}">`;
+        });
+        datalistHtml += '</datalist>';
+    }
+
+    let html = '<table><thead><tr><th>Cat</th><th>Name (editable)</th>';
+    if (isTeamRace) {
+        html += '<th>Team</th>';
+    }
+    html += '<th>Time</th><th>Gap</th><th>Points</th></tr></thead><tbody>';
     parsed.forEach((r, idx) => {
         let displayPoints = r.points || 0;
         let bonusDisplay = '';
@@ -195,28 +285,80 @@ function buildVerificationTable(parsed, raceNumber) {
         }
 
         html += `<tr>
-            <td>${r.category}</td>
-            <td><input type="text" value="${r.name.replace(/"/g, '&quot;')}" class="verify-name" data-idx="${idx}"></td>
-            <td>${r.time}</td>
-            <td>${r.gap || '-'}</td>
-            <td>${displayPoints}${bonusDisplay}</td>
-        </tr>`;
+                <td>${r.category}</td>
+                <td><input type="text" value="${r.name.replace(/"/g, '&quot;')}" class="verify-name" data-idx="${idx}"></td>`;
+        if (isTeamRace) {
+            const normName = normalizeRiderName(r.name);
+            const suggestedTeam = riderTeams[normName + '_' + r.category] || '';
+            const isFixed = !!suggestedTeam;
+            const teamAttrs = isFixed ? 'readonly title="Previously assigned team (fixed)" class="verify-team fixed-team"' : 'class="verify-team" list="teamDatalist"';
+            html += `<td><input type="text" value="${suggestedTeam.replace(/"/g, '&quot;')}" ${teamAttrs} data-idx="${idx}"></td>`;
+        }
+        html += `
+                <td>${r.time}</td>
+                <td>${r.gap || '-'}</td>
+                <td>${displayPoints}${bonusDisplay}</td>
+            </tr>`;
     });
     html += '</tbody></table>';
 
-    document.getElementById('verificationTableContainer').innerHTML = html;
+    document.getElementById('verificationTableContainer').innerHTML = datalistHtml + html;
+
+    // NEW: Dynamic datalist updates + listeners (team mode only)
+    if (isTeamRace) {
+        const updateTeamDatalist = () => {
+            const inputs = document.querySelectorAll('.verify-team');
+            const teamsSet = new Set();
+            inputs.forEach(input => {
+                const val = input.value.trim();
+                if (val) teamsSet.add(val);
+            });
+            const datalist = document.getElementById('teamDatalist');
+            if (datalist) {
+                datalist.innerHTML = Array.from(teamsSet).sort((a, b) => a.localeCompare(b))
+                    .map(team => `<option value="${team.replace(/"/g, '&quot;')}">`).join('');
+            }
+        };
+
+        document.querySelectorAll('.verify-team').forEach(input => {
+            input.addEventListener('blur', updateTeamDatalist);
+        });
+        updateTeamDatalist();  // Initial sync
+    }
 }
 
 function confirmVerification() {
     const raceNumber = parseInt(document.getElementById('verifyRaceNumber').textContent, 10);
-    const parsed = parseZwiftPowerPaste(document.getElementById('pasteArea').value);
+    const pastedText = document.getElementById('pasteArea').value;
+    const parsed = parseZwiftPowerPaste(pastedText);
 
+    // Update names
     document.querySelectorAll('.verify-name').forEach(input => {
         const idx = parseInt(input.dataset.idx, 10);
         if (!isNaN(idx) && parsed[idx]) {
             parsed[idx].name = input.value.trim();
         }
     });
+
+    // NEW: Update teams if team mode + validate all editable filled
+    const config = loadSeriesConfig();
+    if (config?.teamRace) {
+        let allEditableFilled = true;
+        document.querySelectorAll('.verify-team:not([readonly])').forEach(input => {
+            const idx = parseInt(input.dataset.idx, 10);
+            const teamVal = input.value.trim();
+            if (parsed[idx]) {
+                parsed[idx].team = teamVal;
+            }
+            if (!teamVal) {
+                allEditableFilled = false;
+            }
+        });
+        if (!allEditableFilled) {
+            alert('All editable team fields must be filled before confirming.');
+            return;
+        }
+    }
 
     closeModal('verificationModal');
     showNameMatchModal(parsed, raceNumber);
@@ -292,7 +434,7 @@ function showNameMatchModal(parsed, raceNumber) {
             row.classList.add('unapproved');
             row.classList.remove('approved');
 
-            checkbox.addEventListener('change', function() {
+            checkbox.addEventListener('change', function () {
                 if (this.checked) {
                     row.classList.remove('unapproved');
                     row.classList.add('approved');
@@ -385,7 +527,11 @@ function renderLeaderboard() {
 
     const gcData = computeGC(config);
     let html = `<div class="info-box"><strong>${config.name}</strong>`;
-    html += `<br><small>GC based on: ${config.gcBasis === 'points' ? 'Total Points' : 'Total Time'}</small>`;
+    html += `<br><small>GC based on: ${config.gcBasis === 'points' ? 'Total Points' : 'Total Time'}`;
+    // NEW: Race type display
+    const raceType = config.teamRace ? 'Team' : 'Individual';
+    const topXNote = config.topXRidersCount ? ` (Top ${config.topXRidersCount} riders/team)` : '';
+    html += ` | Race Type: ${raceType}${topXNote}</small>`;
     if (config.description?.trim()) {
         html += `<br><br>${config.description}`;
     }
@@ -416,37 +562,69 @@ function renderLeaderboard() {
     html += '</div>';
 
     Object.keys(gcData).sort().forEach((cat, index) => {
-        const {complete, incomplete} = gcData[cat];
+        const complete = gcData[cat]?.complete || [];
+        const incomplete = gcData[cat]?.incomplete || [];
+        const teams = gcData[cat]?.teams || [];
         const display = index === 0 ? 'block' : 'none';
 
         html += `<div id="tab-${cat}" class="tab-content" style="display:${display};">`;
-        html += `<h3>Category ${cat} - Ranked GC</h3>`;
-        html += '<table class="category-table"><thead><tr>';
-        html += '<th>GC Pos</th><th>Rider</th>';
+        html += `<h3>Category ${cat} - ${config.teamRace ? 'Team' : 'Individual'} GC</h3>`;
+        html += '<table class="category-table">';
+        // Dynamic headers
+        html += '<thead><tr><th>GC Pos</th>';
+        if (config.teamRace) {
+            html += '<th>Team</th>';
+        }
+        html += '<th>Rider</th>';
         for (let race = 1; race <= config.numRaces; race++) {
             html += `<th>Race ${race}<br>(Pos / Pts / Time)</th>`;
         }
-        html += '<th>Total</th></tr></thead><tbody>';
+        if (config.teamRace) {
+            html += '<th>Rider Total</th><th>Team Total</th>';
+        } else {
+            html += '<th>Total</th>';
+        }
+        html += '</tr></thead><tbody>';
 
-        complete.forEach(rider => {
-            html += `<tr><td>${rider.gcPosition}</td><td>${rider.name}</td>`;
-            rider.races.forEach(raceData => {
-                html += raceData ? `<td>${raceData.position} / ${raceData.points} / ${raceData.time}</td>` : '<td>-</td>';
+        // Dynamic rows
+        if (config.teamRace && teams.length > 0) {
+            teams.forEach(team => {
+                if (team.riders && team.riders.length > 0) {
+                    team.riders.forEach(rider => {
+                        html += `<tr>
+                                    <td>${team.gcPosition || '-'}</td>
+                                    <td>${team.name}</td>
+                                    <td>${rider.name}</td>`;
+                        rider.races.forEach(raceData => {
+                            html += raceData ? `<td>${raceData.position} / ${raceData.points} / ${raceData.time}</td>` : '<td>-</td>';
+                        });
+                        html += `<td>${rider.totalPoints}</td>
+                                    <td>${team.totalTeamPoints}</td>
+                                </tr>`;
+                    });
+                }
             });
-            const total = config.gcBasis === 'points' ? rider.totalPoints : formatSeconds(rider.totalSeconds);
-            html += `<td>${total}</td></tr>`;
-        });
-
+        } else {
+            // Individual mode: complete riders
+            complete.forEach(rider => {
+                html += `<tr><td>${rider.gcPosition}</td><td>${rider.name}</td>`;
+                rider.races.forEach(raceData => {
+                    html += raceData ? `<td>${raceData.position} / ${raceData.points} / ${raceData.time}</td>` : '<td>-</td>';
+                });
+                const total = config.gcBasis === 'points' ? rider.totalPoints : formatSeconds(rider.totalSeconds);
+                html += `<td>${total}</td></tr>`;
+            });
+        }
         html += '</tbody></table>';
 
-        if (config.gcBasis === 'time' && incomplete.length > 0) {
+        // Incomplete section (individual time GC only)
+        if (config.gcBasis === 'time' && !config.teamRace && incomplete.length > 0) {
             html += `<h4>Incomplete Participation</h4>`;
             html += '<table class="category-table"><thead><tr><th>Rider</th>';
             for (let race = 1; race <= config.numRaces; race++) {
                 html += `<th>Race ${race}</th>`;
             }
             html += '<th>Completed</th></tr></thead><tbody>';
-
             incomplete.forEach(rider => {
                 html += `<tr><td>${rider.name}</td>`;
                 rider.races.forEach(raceData => {

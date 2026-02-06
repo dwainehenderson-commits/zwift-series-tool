@@ -41,6 +41,8 @@ function loadAllRaces() {
 function computeGC(config) {
     const races = loadAllRaces();
     const ridersGC = {};
+    // NEW: For team mode
+    const teamsGC = {};
 
     // Collect data
     races.forEach((race, raceIndex) => {
@@ -61,6 +63,7 @@ function computeGC(config) {
                     totalPoints: 0,
                     totalSeconds: 0,
                     racesCompleted: 0,
+                    team: '',
                     races: new Array(config.numRaces).fill(null)
                 };
             }
@@ -96,7 +99,51 @@ function computeGC(config) {
                 gap: entry.gap,
                 totalSeconds: entry.totalSeconds
             };
+            // NEW: Set team if not already set (sticky)
+            if (entry.team && !ridersGC[key].team) {
+                ridersGC[key].team = entry.team;
+            }
         });
+        // NEW: Team points aggregation per race (after individual points calculated)
+        if (config.teamRace) {
+            const catRiderLists = {};
+            race.forEach(entry => {
+                const cat = entry.category;
+                if (!catRiderLists[cat]) catRiderLists[cat] = [];
+                catRiderLists[cat].push(entry);
+            });
+            Object.keys(catRiderLists).forEach(cat => {
+                const teamGroups = {};
+                catRiderLists[cat].forEach(entry => {
+                    const normT = normalizeTeam(entry.team);
+                    if (normT) {
+                        if (!teamGroups[normT]) teamGroups[normT] = [];
+                        teamGroups[normT].push(entry);
+                    }
+                });
+                Object.keys(teamGroups).forEach(normT => {
+                    const group = teamGroups[normT].slice();
+                    group.sort((a, b) => a.position - b.position || parseFloat(a.totalSeconds) - parseFloat(b.totalSeconds));
+                    const topX = config.topXRidersCount || group.length;
+                    const topRidersPoints = group.slice(0, topX).reduce((sum, r) => sum + r.points, 0);
+                    const teamKey = normT + '_' + cat;
+                    if (!teamsGC[teamKey]) {
+                        teamsGC[teamKey] = {
+                            normTeam: normT,
+                            category: cat,
+                            name: group[0].team,
+                            totalTeamPoints: 0,
+                            teamRacesCompleted: 0,
+                            races: new Array(config.numRaces).fill(0)
+                        };
+                    }
+                    const team = teamsGC[teamKey];
+                    team.totalTeamPoints += topRidersPoints;
+                    team.races[raceIndex] = topRidersPoints;
+                    if (topRidersPoints > 0) team.teamRacesCompleted++;
+                });
+            });
+        }
     });
 
     // Group by category
@@ -153,9 +200,40 @@ function computeGC(config) {
 
         byCategory[cat] = { complete, incomplete };
     });
+    // NEW: Override for team mode (group riders under teams)
+    if (config.teamRace) {
+        Object.keys(byCategory).forEach(cat => {
+            const allRiders = byCategory[cat].complete;  // Points GC: all are "complete"
+            const catTeamKeys = Object.keys(teamsGC).filter(key => key.endsWith('_' + cat));
+            const catTeams = [];
+            catTeamKeys.forEach(teamKey => {
+                const team = teamsGC[teamKey];
+                team.riders = allRiders
+                    .filter(rider => normalizeTeam(rider.team || '') === team.normTeam)
+                    .sort((a, b) => b.totalPoints - a.totalPoints);
+                if (team.riders.length > 0) {
+                    catTeams.push(team);
+                }
+            });
+            catTeams.sort((a, b) => b.totalTeamPoints - a.totalTeamPoints);
+            let pos = 1;
+            catTeams.forEach((team, index) => {
+                if (index > 0 && team.totalTeamPoints === catTeams[index - 1].totalTeamPoints) {
+                    team.gcPosition = pos;
+                } else {
+                    pos = index + 1;
+                    team.gcPosition = pos;
+                }
+            });
+            byCategory[cat].teams = catTeams;
+            delete byCategory[cat].complete;
+            delete byCategory[cat].incomplete;
+        });
+    }
 
     return byCategory;
 }
+
 // Alias storage key
 const ALIAS_KEY = 'zwiftRiderAliases';
 
@@ -177,4 +255,13 @@ function applyAlias(name) {
     const normalized = normalizeRiderName(name);
     const aliases = loadRiderAliases();
     return aliases[normalized] || name;
+}
+
+// NEW: Normalize team name for grouping (preserve original casing in display)
+function normalizeTeam(team) {
+    if (!team) return '';
+    return team.toLowerCase().trim()
+        .replace(/\s{2,}/g, ' ')
+        .replace(/[^a-z0-9\s]/g, '')
+        .trim();
 }
